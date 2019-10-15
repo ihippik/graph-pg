@@ -1,4 +1,4 @@
-module github.com/ihippik/graphpg
+module github.com/ihippik/graph-pg
 
 go 1.13
 
