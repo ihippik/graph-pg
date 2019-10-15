@@ -74,7 +74,7 @@ func BuildQuery(db orm.DB, query *orm.Query, tableName, q string) (*orm.Query, e
 		case varcharType:
 			if !strings.Contains(val, "||") && strings.Contains(val, "|") {
 				condition = createEnumeration(columnName, val)
-			} else if !strings.HasPrefix(val, "~") {
+			} else if strings.HasPrefix(val, "~") {
 				condition = fmt.Sprintf("%s ILIKE '%%%s%%'", columnName, val[1:])
 			} else {
 				condition = fmt.Sprintf("%s = %s", columnName, val)
