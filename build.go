@@ -3,7 +3,6 @@ package graphpg
 import (
 	"errors"
 	"fmt"
-	"github.com/go-pg/pg"
 	"regexp"
 	"strings"
 
@@ -29,7 +28,7 @@ var (
 )
 
 // BuildQuery build a query from user query parameters.
-func BuildQuery(db *pg.DB, query *orm.Query, tableName, q string) (*orm.Query, error) {
+func BuildQuery(db orm.DB, query *orm.Query, tableName, q string) (*orm.Query, error) {
 	var (
 		columns   []Schema
 		condition string
