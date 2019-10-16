@@ -77,7 +77,7 @@ func BuildQuery(db orm.DB, query *orm.Query, tableName, q string) (*orm.Query, e
 			} else if strings.HasPrefix(val, "~") {
 				condition = fmt.Sprintf("%s ILIKE '%%%s%%'", columnName, val[1:])
 			} else {
-				condition = fmt.Sprintf("%s = %s", columnName, val)
+				condition = fmt.Sprintf("%s = '%s'", columnName, val)
 			}
 		case timestampType:
 			if strings.HasPrefix(val, "||") {
