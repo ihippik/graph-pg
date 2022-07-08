@@ -136,9 +136,13 @@ func conditionForInt(val string, columnName []string) string {
 			values[1],
 		)
 	case len(strings.Split(val, "~")) > 1 && !strings.Contains(val, "~~"):
-		condition = fmt.Sprintf("%s IN(%s)", columnName, strings.Replace(val, "~", ",", -1))
+		condition = fmt.Sprintf(
+			"%s IN(%s)",
+			columnName[0],
+			strings.Replace(val, "~", ",", -1),
+		)
 	default:
-		condition = fmt.Sprintf("%s = %s", columnName, val)
+		condition = fmt.Sprintf("%s = %s", columnName[0], val)
 	}
 
 	return condition
