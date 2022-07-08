@@ -10,10 +10,14 @@ func createEnumeration(column string, val string) string {
 		condition string
 		arr       []string
 	)
+
 	vals := strings.Split(val, "|")
+
 	for _, v := range vals {
 		arr = append(arr, fmt.Sprintf("%s = %s", column, v))
 	}
+
 	condition = "(" + strings.Join(arr, " OR ") + ")"
+
 	return condition
 }

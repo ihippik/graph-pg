@@ -15,6 +15,7 @@ func BuildPagination(query *orm.Query, sort string, limit, offset int) (*orm.Que
 	)
 
 	sortItem := strings.Split(sort, ",")
+
 	for _, item := range sortItem {
 		if strings.HasPrefix(item, "-") {
 			columnName := item
@@ -22,12 +23,15 @@ func BuildPagination(query *orm.Query, sort string, limit, offset int) (*orm.Que
 		} else {
 			tmp = item
 		}
+
 		result = append(result, tmp)
 	}
+
 	for _, srt := range result {
 		if len(srt) == 0 {
 			continue
 		}
+
 		query.Order(srt)
 	}
 
@@ -35,9 +39,11 @@ func BuildPagination(query *orm.Query, sort string, limit, offset int) (*orm.Que
 	if err != nil {
 		return query, count, err
 	}
+
 	if limit > 0 {
 		query.Limit(limit)
 	}
+
 	if offset > 0 {
 		query.Offset(offset)
 	}

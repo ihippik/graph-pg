@@ -1,7 +1,6 @@
 package graphpg
 
 import (
-	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -23,9 +22,7 @@ const (
 	timestampType = "timestamp"
 )
 
-var (
-	rangeRegexp = regexp.MustCompile("\\d+;;\\d+")
-)
+var rangeRegexp = regexp.MustCompile("\\d+;;\\d+")
 
 // BuildQuery build a query from user query parameters.
 func BuildQuery(db orm.DB, query *orm.Query, tableName, q string) (*orm.Query, error) {
@@ -35,10 +32,10 @@ func BuildQuery(db orm.DB, query *orm.Query, tableName, q string) (*orm.Query, e
 	)
 
 	if err := db.Model(&columns).Where("table_name=?", tableName).Select(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get table columns: %w", err)
 	}
 
-	fieldsType := make(map[string]string)
+	fieldsType := make(map[string]string, len(columns))
 	for _, column := range columns {
 		fieldsType[column.ColumnName] = column.ColumnType
 	}
@@ -49,52 +46,100 @@ func BuildQuery(db orm.DB, query *orm.Query, tableName, q string) (*orm.Query, e
 		if len(queryVal) != 2 {
 			return query, nil
 		}
-		columnName := queryVal[0]
-		val := queryVal[1]
-		valueType, ok := fieldsType[columnName]
+
+		columns, val := queryVal[0], queryVal[1]
+		columnName := strings.Split(columns, "|")
+
+		valueType, ok := fieldsType[columnName[0]]
 		if !ok {
-			return query, errors.New("unknown column")
+			return query, errUnknownColumn
 		}
-		columnName = fmt.Sprintf(`"%s".%s`, tableName, columnName)
+
+		for i := range columnName {
+			columnName[i] = fmt.Sprintf(`"%s".%s`, tableName, columnName[i])
+		}
 
 		switch valueType {
 		case int4Type:
-			if strings.HasPrefix(val, "||") {
-				condition = fmt.Sprintf("%s <= %s", columnName, val[2:])
-			} else if strings.HasSuffix(val, "||") {
-				condition = fmt.Sprintf("%s >= %s", columnName, val[:len(val)-2])
-			} else if rangeRegexp.Match([]byte(val)) {
-				values := strings.Split(val, ";;")
-				condition = fmt.Sprintf("%s > %s AND %s <= %s", columnName, values[0], columnName, values[1])
-			} else if len(strings.Split(val, "~")) > 1 && !strings.Contains(val, "~~") {
-				condition = fmt.Sprintf("%s IN(%s)", columnName, strings.Replace(val, "~", ",", -1))
-			} else {
-				condition = fmt.Sprintf("%s = %s", columnName, val)
-			}
+			condition = conditionForInt(val, columnName)
 		case varcharType:
-			if !strings.Contains(val, "||") && strings.Contains(val, "|") {
-				condition = createEnumeration(columnName, val)
-			} else if strings.HasPrefix(val, "~") {
-				condition = fmt.Sprintf("%s ILIKE '%%%s%%'", columnName, val[1:])
-			} else {
-				condition = fmt.Sprintf("%s = '%s'", columnName, val)
-			}
+			condition = conditionForVarchar(val, columnName)
 		case timestampType:
-			if strings.HasPrefix(val, "||") {
-				condition = fmt.Sprintf("extract(epoch from %s) < %s", columnName, val[2:])
-			} else if strings.HasSuffix(val, "||") {
-				condition = fmt.Sprintf("extract(epoch from %s) > %s", columnName, val[:len(val)-2])
-			} else if rangeRegexp.Match([]byte(val)) {
-				values := strings.Split(val, ";;")
-				condition = fmt.Sprintf("extract(epoch from %s) > %s AND extract(epoch from %s) <= %s", columnName, values[0], columnName, values[1])
-			} else {
-				condition = fmt.Sprintf("%s = %s", columnName, val)
-			}
+			condition = conditionForTimestamp(val, columnName)
 		default:
-			condition = fmt.Sprintf("%s = %s", columnName, val)
+			condition = fmt.Sprintf("%s = '%s'", columnName[0], val)
 		}
+
 		query.Where(condition)
 	}
 
 	return query, nil
+}
+
+func conditionForTimestamp(val string, columnName []string) string {
+	var condition string
+
+	switch {
+	case strings.HasPrefix(val, "||"):
+		condition = fmt.Sprintf("extract(epoch from %s) < %s", columnName[0], val[2:])
+	case strings.HasSuffix(val, "||"):
+		condition = fmt.Sprintf("extract(epoch from %s) > %s", columnName[0], val[:len(val)-2])
+	case rangeRegexp.Match([]byte(val)):
+		values := strings.Split(val, ";;")
+		condition = fmt.Sprintf(
+			"extract(epoch from %s) > %s AND extract(epoch from %s) <= %s",
+			columnName[0],
+			values[0],
+			columnName[0],
+			values[1],
+		)
+	default:
+		condition = fmt.Sprintf("%s = %s", columnName[0], val)
+	}
+
+	return condition
+}
+
+func conditionForVarchar(val string, columnName []string) string {
+	var condition string
+
+	switch {
+	case !strings.Contains(val, "||") && strings.Contains(val, "|"):
+		condition = createEnumeration(columnName[0], val)
+	case strings.HasPrefix(val, "~"):
+		condition = fmt.Sprintf("%s ILIKE '%%%s%%'", columnName[0], val[1:])
+	default:
+		condition = fmt.Sprintf("%s = '%s'", columnName[0], val)
+	}
+
+	return condition
+}
+
+func conditionForInt(val string, columnName []string) string {
+	var condition string
+
+	switch {
+	// TODO: not processed more than two
+	case len(columnName) > 1:
+		condition = fmt.Sprintf("(%s = %s OR %s = %s)", columnName[0], val, columnName[1], val)
+	case strings.HasPrefix(val, "||"):
+		condition = fmt.Sprintf("%s <= %s", columnName[0], val[2:])
+	case strings.HasSuffix(val, "||"):
+		condition = fmt.Sprintf("%s >= %s", columnName[0], val[:len(val)-2])
+	case rangeRegexp.Match([]byte(val)):
+		values := strings.Split(val, ";;")
+		condition = fmt.Sprintf(
+			"%s > %s AND %s <= %s",
+			columnName[0],
+			values[0],
+			columnName[0],
+			values[1],
+		)
+	case len(strings.Split(val, "~")) > 1 && !strings.Contains(val, "~~"):
+		condition = fmt.Sprintf("%s IN(%s)", columnName, strings.Replace(val, "~", ",", -1))
+	default:
+		condition = fmt.Sprintf("%s = %s", columnName, val)
+	}
+
+	return condition
 }
