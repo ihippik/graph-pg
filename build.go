@@ -20,6 +20,7 @@ const (
 	int4Type      = "int4"
 	varcharType   = "varchar"
 	timestampType = "timestamp"
+	uuidType      = "uuid"
 )
 
 var rangeRegexp = regexp.MustCompile("\\d+;;\\d+")
@@ -66,6 +67,8 @@ func BuildQuery(db orm.DB, query *orm.Query, tableName, q string) (*orm.Query, e
 			condition = conditionForVarchar(val, columnName)
 		case timestampType:
 			condition = conditionForTimestamp(val, columnName)
+		case uuidType:
+			condition = fmt.Sprintf("%s = '%s'", columnName[0], val)
 		default:
 			condition = fmt.Sprintf("%s = '%s'", columnName[0], val)
 		}
